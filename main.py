@@ -89,7 +89,6 @@ class GridButton(DragBehavior, Button):
         sup = super(GridButton,self).on_touch_move(touch)
         if self._drag_touch and not (self._drag_touch is not touch or\
                                      self._get_uid('svavoid') in touch.ud):
-            print("dragging" + self.text)
             self._old_pos = self.pos
             self.pos_hint={}
             self.parent.remove_widget(self)
@@ -133,35 +132,40 @@ class ExampleApp(App):
         random.seed(time.time())
         pygame.midi.init()
         self.set_midi_device()
-        bl = BoxLayout(orientation="horizontal")
-        fl = FloatLayout(size_hint=(.7,1))
-        notegrid = LockingGridLayout(rows=8, columns=8)
-        
-        labels = []
         self.challenge=set()
+
+        root = BoxLayout(orientation="horizontal")
+        
+        fl = FloatLayout(size_hint=(.7,1))
         notebox = FloatLayout()
+        notegrid = LockingGridLayout(rows=8, columns=8)
+        notes = []
         for i in range(3):
             for j in range(3):
-                labels.append(GridButton(row=i, column=j,
+                notes.append(GridButton(row=i, column=j,
                                         dragginglayout=fl, lockinglayout=notegrid,freelayouts=[notebox]))
-        for label in labels:
-            notegrid.add_widget(label)
+        for note in notes:
+            notegrid.add_widget(note)
         fl.add_widget(notegrid)
-        bl.add_widget(fl)
-        bbbl=BoxLayout(orientation="vertical",size_hint=(.3,1))
+        
+        sidebar=BoxLayout(orientation="vertical",size_hint=(.3,1))
+        
         topbox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
-        bottombox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
         settingsbtn = Button(size_hint=(1,.5),text="SETTINGS",
                              on_press=self.open_settings)
         cnewbtn = Button(size_hint=(1,.5),text="NEW CHALLENGE",
                          on_press=lambda btn: self.new_challenge(xsize=notegrid.rows,
                                                                  ysize=notegrid.columns,
                                                                  difficulty=self.difficulty))
+        topbox.add_widget(settingsbtn)
+        topbox.add_widget(cnewbtn)
+
+        bottombox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
         def playurs():
             self.attempts+=1
             self.play(grid=notegrid.grid)
-            if ((len(self.challenge&set(notegrid.grid.keys())) / len(self.challenge)) == 1) \
-               and list(self.challenge)!=[]:
+            if list(self.challenge)!=[] \
+               and ((len(self.challenge&set(notegrid.grid.keys())) / len(self.challenge)) == 1):
                 goaway = Label(text='I AM A WINNER!')
                 youwin = Popup(title='YOU WON!!!!!!',
                                content=goaway,
@@ -175,6 +179,10 @@ class ExampleApp(App):
                           on_press=lambda btn: playurs())
         cplaybtn = Button(size_hint=(1,1),text="PLAY THEM",
                           on_press=lambda btn: self.play(grid=self.challenge))
+        bottombox.add_widget(cplaybtn)
+        bottombox.add_widget(uplaybtn)
+
+        subbottombox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
         def chngdiff(d):
             self.difficulty+=d
             if d>0:
@@ -192,27 +200,26 @@ class ExampleApp(App):
                           on_press=lambda btn: chngdiff(1))
         diffdecbtn=Button(size_hint=(1,1),text="EASIER",
                           on_press=lambda btn: chngdiff(-1))
+        subbottombox.add_widget(diffincbtn)
+        subbottombox.add_widget(diffdecbtn)
+
+        lblbox=BoxLayout(orientation="vertical",size_hint=(1,.2))
         difflbl=Label(size_hint=(1,.5),text="Difficulty: " + str(self.difficulty))
         self.attemptslbl=Label(size_hint=(1,.5),text="Attempts: " + str(self.attempts))
         self.lastcorrectlbl=Label(size_hint=(1,.5),text="Last time: ")
-        lblbox=BoxLayout(orientation="vertical",size_hint=(1,.2))
         lblbox.add_widget(self.attemptslbl)
         lblbox.add_widget(difflbl)
         lblbox.add_widget(self.lastcorrectlbl)
-        topbox.add_widget(settingsbtn)
-        topbox.add_widget(cnewbtn)
-        bottombox.add_widget(cplaybtn)
-        bottombox.add_widget(uplaybtn)
-        subbottombox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
-        subbottombox.add_widget(diffincbtn)
-        subbottombox.add_widget(diffdecbtn)
-        bbbl.add_widget(topbox)
-        bbbl.add_widget(bottombox)
-        bbbl.add_widget(lblbox)
-        bbbl.add_widget(subbottombox)
-        bbbl.add_widget(notebox)
-        bl.add_widget(bbbl)
-        return bl
+        
+        sidebar.add_widget(topbox)
+        sidebar.add_widget(bottombox)
+        sidebar.add_widget(lblbox)
+        sidebar.add_widget(subbottombox)
+        sidebar.add_widget(notebox)
+
+        root.add_widget(fl)
+        root.add_widget(sidebar)
+        return root
 
     def on_lastcorrect(self,instance,value):
         self.lastcorrectlbl.text="Last time:" + self.lastcorrect
