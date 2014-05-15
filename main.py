@@ -3,8 +3,7 @@ in a short randomly generated tune. It is the kind of thing that
 I wish I had around as a kid, so that I'd have perfect pitch now.
 
 I used inclement's SparseGridLayout but disfigured it beyond repair
-to be a drag and drop grid. It's getting down to the wire here and I'm
-lazy so I didn't change any names. I also used code from stocyrs' IcarusTouch
+to be a drag and drop grid. I also used code from stocyrs' IcarusTouch
 midi keyboard app (which is awesome), in order to initialize the midi stuff.
 
 '''
@@ -26,7 +25,7 @@ from functools import partial
 import random
 import time
 
-class SparseGridLayout(FloatLayout):
+class LockingGridLayout(FloatLayout):
 
     rows = NumericProperty(0)
     columns = NumericProperty(0)
@@ -34,7 +33,7 @@ class SparseGridLayout(FloatLayout):
     shape = ReferenceListProperty(rows, columns)
 
     def __init__(self,**kwargs):
-        super(SparseGridLayout, self).__init__(**kwargs)
+        super(LockingGridLayout, self).__init__(**kwargs)
         self.grid={}
 
     def do_layout(self, *args):
@@ -48,9 +47,9 @@ class SparseGridLayout(FloatLayout):
 
             child.pos_hint = {'x': shape_hint[0] * child.row,
                               'y': shape_hint[1] * child.column}
-        super(SparseGridLayout, self).do_layout(*args)
+        super(LockingGridLayout, self).do_layout(*args)
     def add_widget(self,widget,**kwargs):
-        super(SparseGridLayout,self).add_widget(widget,**kwargs)
+        super(LockingGridLayout,self).add_widget(widget,**kwargs)
         print("widget.row before sorted is: " + str(widget.row))
         widget.row = sorted((0,widget.row,self.rows-1))[1]
         widget.column = sorted((0,widget.column,self.columns-1))[1]
@@ -63,7 +62,7 @@ class SparseGridLayout(FloatLayout):
         print("contents of " + str(key) + ": " +
               str([widget.text for widget in self.grid[key]]))
     def remove_widget(self,widget,**kwargs):
-        super(SparseGridLayout,self).remove_widget(widget,**kwargs)
+        super(LockingGridLayout,self).remove_widget(widget,**kwargs)
         print("removing widget from " + str(widget.row) + "," + str(widget.column))
         key = (int(widget.row),int(widget.column))
         if key in self.grid:
@@ -77,7 +76,7 @@ class SparseGridLayout(FloatLayout):
         
         
 
-class GridLabel(DragBehavior, Button):
+class GridButton(DragBehavior, Button):
     row = NumericProperty(1)
     column = NumericProperty(1)
     gridcoord = ReferenceListProperty(row,column)
@@ -87,7 +86,7 @@ class GridLabel(DragBehavior, Button):
 
     
     def on_touch_move(self,touch):
-        sup = super(GridLabel,self).on_touch_move(touch)
+        sup = super(GridButton,self).on_touch_move(touch)
         if self._drag_touch and not (self._drag_touch is not touch or\
                                      self._get_uid('svavoid') in touch.ud):
             print("dragging" + self.text)
@@ -101,7 +100,7 @@ class GridLabel(DragBehavior, Button):
         if self._drag_touch and not\
         ((self._drag_touch is not touch) or\
          (self._get_uid('svavoid') in touch.ud)):
-            sup = super(GridLabel,self).on_touch_up(touch)
+            sup = super(GridButton,self).on_touch_up(touch)
             if self._drag_touch == None:
                 relativex = self.x/(self.lockinglayout.width
                               + self.lockinglayout.x)
@@ -123,7 +122,7 @@ class GridLabel(DragBehavior, Button):
                 self.lockinglayout.add_widget(self)
             return sup
         else:
-            return super(GridLabel,self).on_touch_up(touch)
+            return super(GridButton,self).on_touch_up(touch)
 
 class ExampleApp(App):
     difficulty=NumericProperty(5)
@@ -136,18 +135,18 @@ class ExampleApp(App):
         self.set_midi_device()
         bl = BoxLayout(orientation="horizontal")
         fl = FloatLayout(size_hint=(.7,1))
-        layout = SparseGridLayout(rows=16, columns=16)
+        notegrid = LockingGridLayout(rows=8, columns=8)
         
         labels = []
         self.challenge=set()
         notebox = FloatLayout()
         for i in range(3):
             for j in range(3):
-                labels.append(GridLabel(row=i, column=j,
-                                        dragginglayout=fl, lockinglayout=layout,freelayouts=[notebox]))
+                labels.append(GridButton(row=i, column=j,
+                                        dragginglayout=fl, lockinglayout=notegrid,freelayouts=[notebox]))
         for label in labels:
-            layout.add_widget(label)
-        fl.add_widget(layout)
+            notegrid.add_widget(label)
+        fl.add_widget(notegrid)
         bl.add_widget(fl)
         bbbl=BoxLayout(orientation="vertical",size_hint=(.3,1))
         topbox=BoxLayout(orientation="horizontal",size_hint=(1,.15))
@@ -155,13 +154,14 @@ class ExampleApp(App):
         settingsbtn = Button(size_hint=(1,.5),text="SETTINGS",
                              on_press=self.open_settings)
         cnewbtn = Button(size_hint=(1,.5),text="NEW CHALLENGE",
-                         on_press=lambda btn: self.new_challenge(xsize=layout.rows,
-                                                                 ysize=layout.columns,
+                         on_press=lambda btn: self.new_challenge(xsize=notegrid.rows,
+                                                                 ysize=notegrid.columns,
                                                                  difficulty=self.difficulty))
         def playurs():
             self.attempts+=1
-            self.play(grid=layout.grid)
-            if layout.grid.keys()==list(self.challenge) and list(self.challenge)!=[]:
+            self.play(grid=notegrid.grid)
+            if ((len(self.challenge&set(notegrid.grid.keys())) / len(self.challenge)) == 1) \
+               and list(self.challenge)!=[]:
                 goaway = Label(text='I AM A WINNER!')
                 youwin = Popup(title='YOU WON!!!!!!',
                                content=goaway,
@@ -169,7 +169,7 @@ class ExampleApp(App):
                 fl.add_widget(youwin)
                 youwin.pos=fl.center
                 Clock.schedule_once(lambda dt: fl.remove_widget(youwin),10)
-            self.lastcorrect=str(len(self.challenge&set(layout.grid.keys())))+"/"+str(len(self.challenge))
+            self.lastcorrect=str(len(self.challenge&set(notegrid.grid.keys())))+"/"+str(len(self.challenge))
             print(self.lastcorrect)
         uplaybtn = Button(size_hint=(1,1),text="PLAY YOU",
                           on_press=lambda btn: playurs())
@@ -178,8 +178,8 @@ class ExampleApp(App):
         def chngdiff(d):
             self.difficulty+=d
             if d>0:
-                newnote=GridLabel(row=0, column=0,
-                                            dragginglayout=fl, lockinglayout=layout,
+                newnote=GridButton(row=0, column=0,
+                                            dragginglayout=fl, lockinglayout=notegrid,
                                             freelayouts=[notebox],size_hint=(.05,.05))
                 x=notebox.pos[0]+random.randint(0,int(notebox.width))
                 y=notebox.pos[1]+random.randint(0,int(notebox.height))
